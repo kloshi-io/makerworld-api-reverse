@@ -51,7 +51,22 @@ jobs:
           npm test
           npm run build
 
+      - name: Check npm release prerequisites
+        id: preflight
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "missing_token=true" >> "$GITHUB_OUTPUT"
+            echo "NPM_TOKEN is not configured. Skipping publish step."
+            exit 0
+          fi
+
+          echo "missing_token=false" >> "$GITHUB_OUTPUT"
+          NODE_AUTH_TOKEN="$NPM_TOKEN" npm whoami --registry=https://registry.npmjs.org/
+
       - name: Create release PR or publish
+        if: steps.preflight.outputs.missing_token == 'false'
         uses: changesets/action@v1
         with:
           version: npm run version-packages
@@ -61,3 +76,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Skip release publish
+        if: steps.preflight.outputs.missing_token == 'true'
+        run: |
+          echo "Release publish skipped because NPM_TOKEN is missing." >> "$GITHUB_STEP_SUMMARY"
