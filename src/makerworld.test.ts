@@ -122,6 +122,66 @@ describe("resolveMakerWorldModel", () => {
     }
   });
 
+  it("forwards request timeout/retry/header options to design-service requests", async () => {
+    let instanceCallCount = 0;
+    const seenClientHeaders: string[] = [];
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+      seenClientHeaders.push(headers.get("x-mw-test-client") ?? "");
+
+      if (url.includes("/v1/design-service/design/1001/instances")) {
+        instanceCallCount += 1;
+        if (instanceCallCount === 1) {
+          throw new Error("temporary network error");
+        }
+        return jsonResponse({
+          instances: [
+            {
+              id: 5010,
+              profileId: 9010,
+              title: "Test Variant",
+              printerName: "Bambu Lab P2S",
+              material: "PLA Basic",
+              prediction: "2.2 h",
+              weight: 30,
+            },
+          ],
+        });
+      }
+      if (url.includes("/v1/design-service/design/1001/model")) {
+        return jsonResponse({ downloadUrl: "https://makerworld.cdn/files/test.3mf" });
+      }
+      if (url.includes("/v1/design-service/instance/5010/f3mf")) {
+        return jsonResponse({ url: "https://makerworld.cdn/files/test-selected.3mf" });
+      }
+      if (url.includes("/v1/design-service/design/1001")) {
+        return jsonResponse({ title: "Model 1001" });
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const result = await resolveMakerWorldModel("https://makerworld.com/en/models/1001-test", {
+        request: {
+          timeoutMs: 3_000,
+          retries: 1,
+          headers: {
+            "x-mw-test-client": "enabled",
+          },
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      expect(instanceCallCount).toBe(2);
+      expect(seenClientHeaders.every((value) => value === "enabled")).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("falls back to __NEXT_DATA__ when API path fails", async () => {
     const nextDataPayload = {
       props: {
@@ -693,6 +753,30 @@ describe("downloadMakerWorldModelFile", () => {
       if (result.ok) return;
       expect(result.state).toBe("unavailable");
       expect(result.reasonCode).toBe("unsupported_model_format");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("applies custom download headers and maxBytes overrides", async () => {
+    let observedHeader = "";
+    const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
+      observedHeader = new Headers(init?.headers).get("x-mw-download-test") ?? "";
+      return new Response(Buffer.from("1234"), {
+        status: 200,
+        headers: { "content-type": "model/3mf" },
+      });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const result = await downloadMakerWorldModelFile("https://makerworld.com/files/custom", {
+        maxBytes: 8,
+        timeoutMs: 5_000,
+        headers: { "x-mw-download-test": "ok" },
+      });
+      expect(observedHeader).toBe("ok");
+      expect(result.ok).toBe(true);
     } finally {
       vi.unstubAllGlobals();
     }

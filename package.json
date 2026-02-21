@@ -1,9 +1,34 @@
 {
   "name": "makerworld-api-reverse",
   "version": "0.1.0",
-  "description": "Reverse-engineered MakerWorld resolver/downloader for model profiles and source files.",
+  "description": "MakerWorld API reverse engineering toolkit: MakerWorld profile resolver and model downloader for 3MF/STL/OBJ workflows.",
   "license": "Apache-2.0",
   "type": "module",
+  "author": "Kloshi IO",
+  "homepage": "https://github.com/kloshi-io/makerworld-api-reverse#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kloshi-io/makerworld-api-reverse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kloshi-io/makerworld-api-reverse/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/kloshi-io"
+  },
+  "keywords": [
+    "makerworld",
+    "makerworld api",
+    "makerworld-api",
+    "reverse engineering",
+    "bambu lab",
+    "3mf",
+    "profile resolver",
+    "model downloader",
+    "typescript",
+    "3d printing"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,6 +36,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "files": [
     "dist"
@@ -21,10 +50,20 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:examples": "rm -rf .tmp/examples && tsc -p tsconfig.examples.build.json && node .tmp/examples/examples/basic-resolve.js && node .tmp/examples/examples/download-model.js && node .tmp/examples/examples/batch-import.js && rm -rf .tmp/examples",
+    "test:docs": "node scripts/verify-docs.mjs",
+    "pack:check": "node scripts/check-pack.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release:dry-run": "npm run build && npm run test && npm_config_cache=.npm-cache npm publish --dry-run --provenance",
+    "release:publish": "npm_config_cache=.npm-cache npm publish --provenance --access public"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
     "@types/node": "^20.19.17",
+    "@vitest/coverage-v8": "^4.0.18",
     "typescript": "^5.9.2",
     "vitest": "^4.0.18"
   }

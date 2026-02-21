@@ -1,0 +1,75 @@
+# LLM Full Context: makerworld-api-reverse
+
+Project: makerworld-api-reverse
+Type: TypeScript library (Node.js >= 20)
+License: Apache-2.0
+Status: Unofficial, reverse-engineered interoperability project.
+
+## Purpose
+
+Provide robust programmatic extraction of MakerWorld model/profile metadata and downloadable model file links, with typed failure outcomes and fallback parsing behavior.
+
+## Primary Exports
+
+- resolveMakerWorldModel(sourceUrl, options?)
+- downloadMakerWorldModelFile(downloadUrl, options?)
+
+## Key Option Surfaces
+
+resolveMakerWorldModel:
+- variantId?: number | null
+- request?: { timeoutMs?: number; retries?: number; headers?: Record<string, string> }
+
+downloadMakerWorldModelFile:
+- timeoutMs?: number
+- maxBytes?: number
+- headers?: Record<string, string>
+
+## Outcome Model
+
+Resolver success:
+- ok: true
+- state: "resolved"
+- data: profile/model payload
+
+Resolver failure:
+- ok: false
+- state: "unresolvable"
+- reasonCode + message + diagnostics
+
+Downloader success:
+- ok: true
+- state: "downloaded"
+- buffer + filename + extension + contentType + finalUrl
+
+Downloader failure:
+- ok: false
+- state: "unavailable"
+- reasonCode + message
+
+## Reason Codes
+
+invalid_url, not_found, upstream_blocked, timeout, malformed_payload, network_error,
+incompatible_profile, missing_profile_metrics, download_unavailable, unsupported_model_format.
+
+## Pipeline
+
+1) Validate and normalize MakerWorld URL.
+2) Resolve via design-service endpoints.
+3) Build and score variant candidates.
+4) Select candidate by requested/user/fallback strategy.
+5) Fallback to __NEXT_DATA__ parsing when API path fails.
+
+## Compliance Position
+
+- Unofficial project.
+- No affiliation with MakerWorld or Bambu Lab.
+- Use must comply with Terms of Service and local laws.
+- Not intended for bypassing controls or private resources.
+
+## Documentation Retrieval Order
+
+1. README.md for onboarding and guarantees.
+2. docs/API.md for signatures and option details.
+3. docs/REASON_CODES.md for failure handling semantics.
+4. docs/MANUAL.md for internals and troubleshooting.

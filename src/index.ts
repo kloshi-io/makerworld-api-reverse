@@ -3,9 +3,11 @@ export {
   resolveMakerWorldModel,
   type MakerWorldAvailableVariant,
   type MakerWorldDiagnostics,
+  type MakerWorldDownloadOptions,
   type MakerWorldDownloadOutcome,
   type MakerWorldProfileResolutionConfidence,
   type MakerWorldProfileResolutionMode,
+  type MakerWorldResolveOptions,
   type MakerWorldResolveOutcome,
   type MakerWorldResolvedData,
   type MakerWorldSelectionStrategy,
@@ -19,3 +21,5 @@ export type {
   MakerWorldApiResult,
   MakerWorldReasonCode,
 } from "./shared.js";
+
+export type { MakerWorldApiRequestOptions } from "./api.js";

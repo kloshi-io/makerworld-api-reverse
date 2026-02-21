@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: makerworld-api-reverse
+message: "If you use this project in research or publications, please cite it."
+type: software
+authors:
+  - family-names: Kloshi
+    given-names: IO
+repository-code: "https://github.com/kloshi-io/makerworld-api-reverse"
+url: "https://github.com/kloshi-io/makerworld-api-reverse"
+license: Apache-2.0
+version: 0.1.0
+date-released: 2026-02-21

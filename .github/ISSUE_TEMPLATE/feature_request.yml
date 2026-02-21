@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose an enhancement with clear scope and behavior.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: input
+    id: problem
+    attributes:
+      label: Problem statement
+      placeholder: What integration problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe expected API/behavior and constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Backward compatibility impact
+      description: Describe whether existing consumers would break.

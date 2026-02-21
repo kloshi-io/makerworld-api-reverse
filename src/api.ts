@@ -13,6 +13,16 @@ const API_HEADERS = {
   "x-bbl-client-name": "MakerWorld",
 };
 
+export type MakerWorldApiRequestOptions = {
+  timeoutMs?: number;
+  retries?: number;
+  headers?: Record<string, string>;
+};
+
+type FetchApiJsonOptions = MakerWorldApiRequestOptions & {
+  query?: Record<string, string | number | boolean | null | undefined>;
+};
+
 function buildApiUrl(pathname: string, query?: Record<string, string | number | boolean | null | undefined>) {
   const normalizedPath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
   const url = new URL(`${MAKERWORLD_DESIGN_SERVICE_BASE}/${normalizedPath}`);
@@ -44,15 +54,18 @@ function mapHttpStatus(status: number) {
 
 async function fetchApiJson(
   pathname: string,
-  options?: {
-    query?: Record<string, string | number | boolean | null | undefined>;
-    timeoutMs?: number;
-    retries?: number;
-  },
+  options?: FetchApiJsonOptions,
 ): Promise<MakerWorldApiResult<unknown>> {
-  const timeoutMs = options?.timeoutMs ?? API_TIMEOUT_MS;
-  const retries = Math.max(0, options?.retries ?? API_RETRY_COUNT);
+  const timeoutMs =
+    typeof options?.timeoutMs === "number" && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+      ? options.timeoutMs
+      : API_TIMEOUT_MS;
+  const retries =
+    typeof options?.retries === "number" && Number.isFinite(options.retries)
+      ? Math.max(0, Math.trunc(options.retries))
+      : API_RETRY_COUNT;
   const url = buildApiUrl(pathname, options?.query);
+  const headers: Record<string, string> = { ...API_HEADERS, ...(options?.headers ?? {}) };
 
   let lastNetworkError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -61,7 +74,7 @@ async function fetchApiJson(
     try {
       const response = await fetch(url, {
         method: "GET",
-        headers: API_HEADERS,
+        headers,
         redirect: "follow",
         signal: controller.signal,
       });
@@ -111,22 +124,22 @@ async function fetchApiJson(
   });
 }
 
-export function fetchDesign(designId: number) {
-  return fetchApiJson(`/design/${designId}`);
+export function fetchDesignInstances(designId: number, options?: MakerWorldApiRequestOptions) {
+  return fetchApiJson(`/design/${designId}/instances`, options);
 }
 
-export function fetchDesignInstances(designId: number) {
-  return fetchApiJson(`/design/${designId}/instances`);
+export function fetchProfile(profileId: number, options?: MakerWorldApiRequestOptions) {
+  return fetchApiJson(`/profile/${profileId}`, options);
 }
 
-export function fetchProfile(profileId: number) {
-  return fetchApiJson(`/profile/${profileId}`);
+export function fetchInstance3mf(instanceId: number, options?: MakerWorldApiRequestOptions) {
+  return fetchApiJson(`/instance/${instanceId}/f3mf`, options);
 }
 
-export function fetchInstance3mf(instanceId: number) {
-  return fetchApiJson(`/instance/${instanceId}/f3mf`);
+export function fetchDesign(designId: number, options?: MakerWorldApiRequestOptions) {
+  return fetchApiJson(`/design/${designId}`, options);
 }
 
-export function fetchDesignModel(designId: number) {
-  return fetchApiJson(`/design/${designId}/model`);
+export function fetchDesignModel(designId: number, options?: MakerWorldApiRequestOptions) {
+  return fetchApiJson(`/design/${designId}/model`, options);
 }

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp/examples",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["examples/**/*.ts", "src/**/*.ts"]
+}

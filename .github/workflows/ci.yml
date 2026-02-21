@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Docs checks
+        run: npm run test:docs
+
+      - name: Example checks
+        run: npm run test:examples
+
+      - name: Package checks
+        run: npm run pack:check
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e 'const fs=require("fs");const s=JSON.parse(fs.readFileSync("coverage/coverage-summary.json","utf8"));const t=s.total||{};const out=["## Coverage","",`Lines: ${t.lines?.pct ?? "n/a"}%`,`Functions: ${t.functions?.pct ?? "n/a"}%`,`Branches: ${t.branches?.pct ?? "n/a"}%`,`Statements: ${t.statements?.pct ?? "n/a"}%`].join("\n");fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,out+"\n");'
+          else
+            echo "Coverage summary not found" >> "$GITHUB_STEP_SUMMARY"
+          fi

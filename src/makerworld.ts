@@ -7,6 +7,7 @@ import {
   fetchDesignModel,
   fetchInstance3mf,
   fetchProfile,
+  type MakerWorldApiRequestOptions,
 } from "./api.js";
 import type {
   MakerWorldApiError,
@@ -143,6 +144,17 @@ export type MakerWorldDownloadOutcome =
       reasonCode: MakerWorldReasonCode;
       message: string;
     };
+
+export type MakerWorldResolveOptions = {
+  variantId?: number | null;
+  request?: MakerWorldApiRequestOptions;
+};
+
+export type MakerWorldDownloadOptions = {
+  timeoutMs?: number;
+  maxBytes?: number;
+  headers?: Record<string, string>;
+};
 
 function isRecord(value: unknown): value is JsonLike {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -1080,13 +1092,16 @@ function normalizeSourceUrl(input: string): {
   };
 }
 
-async function maybeEnrichWithProfile(candidate: VariantCandidate): Promise<VariantCandidate> {
+async function maybeEnrichWithProfile(
+  candidate: VariantCandidate,
+  requestOptions?: MakerWorldApiRequestOptions,
+): Promise<VariantCandidate> {
   if (candidate.profileId === null) return candidate;
   if (hasCompleteMetrics(candidate) && candidate.printer !== "unknown" && candidate.material !== "unknown") {
     return candidate;
   }
 
-  const profileResult = await fetchProfile(candidate.profileId);
+  const profileResult = await fetchProfile(candidate.profileId, requestOptions);
   if (!profileResult.ok || !isRecord(profileResult.data)) return candidate;
 
   const merged: VariantCandidate = {
@@ -1114,12 +1129,13 @@ async function resolveViaApi(input: {
   designId: number;
   requestedVariantId: number | null;
   userVariantId: number | null;
+  requestOptions?: MakerWorldApiRequestOptions;
 }): Promise<ResolvePipelineResult> {
   const warnings: string[] = [];
 
   const [designResult, instancesResult] = await Promise.all([
-    fetchDesign(input.designId),
-    fetchDesignInstances(input.designId),
+    fetchDesign(input.designId, input.requestOptions),
+    fetchDesignInstances(input.designId, input.requestOptions),
   ]);
 
   if (!instancesResult.ok) {
@@ -1154,7 +1170,9 @@ async function resolveViaApi(input: {
     };
   }
 
-  const enriched = await Promise.all(mapped.map((variant) => maybeEnrichWithProfile(variant)));
+  const enriched = await Promise.all(
+    mapped.map((variant) => maybeEnrichWithProfile(variant, input.requestOptions)),
+  );
 
   const titlePayload = designResult.ok ? designResult.data : instancesResult.data;
   const finalized = finalizeResolvedData({
@@ -1171,13 +1189,13 @@ async function resolveViaApi(input: {
   let downloadUrl = finalized.data.downloadUrl;
 
   if (finalized.data.selectedVariantId) {
-    const instanceDownload = await fetchInstance3mf(finalized.data.selectedVariantId);
+    const instanceDownload = await fetchInstance3mf(finalized.data.selectedVariantId, input.requestOptions);
     if (instanceDownload.ok) {
       downloadUrl = chooseDownloadUrl(instanceDownload.data) ?? downloadUrl;
     }
   }
 
-  const modelDownload = await fetchDesignModel(input.designId);
+  const modelDownload = await fetchDesignModel(input.designId, input.requestOptions);
   if (modelDownload.ok) {
     downloadUrl = downloadUrl ?? chooseDownloadUrl(modelDownload.data);
   }
@@ -1199,6 +1217,7 @@ async function resolveViaNextData(input: {
   sourceUrl: string;
   requestedVariantId: number | null;
   userVariantId: number | null;
+  requestOptions?: MakerWorldApiRequestOptions;
 }): Promise<ResolvePipelineResult> {
   const warnings: string[] = [];
 
@@ -1243,7 +1262,9 @@ async function resolveViaNextData(input: {
     };
   }
 
-  const enriched = await Promise.all(variants.map((variant) => maybeEnrichWithProfile(variant)));
+  const enriched = await Promise.all(
+    variants.map((variant) => maybeEnrichWithProfile(variant, input.requestOptions)),
+  );
 
   const finalized = finalizeResolvedData({
     sourceUrl: input.sourceUrl,
@@ -1277,7 +1298,7 @@ function createAttempt(source: DataSource, result: MakerWorldApiError | null, me
 
 export async function resolveMakerWorldModel(
   sourceUrl: string,
-  options?: { variantId?: number | null },
+  options?: MakerWorldResolveOptions,
 ): Promise<MakerWorldResolveOutcome> {
   const diagnostics: MakerWorldDiagnostics = {
     pipeline: [],
@@ -1306,6 +1327,7 @@ export async function resolveMakerWorldModel(
       designId: normalized.designId,
       requestedVariantId: normalized.requestedVariantId,
       userVariantId,
+      requestOptions: options?.request,
     });
 
     diagnostics.pipeline.push("api");
@@ -1335,6 +1357,7 @@ export async function resolveMakerWorldModel(
       sourceUrl: normalized.normalized,
       requestedVariantId: normalized.requestedVariantId,
       userVariantId,
+      requestOptions: options?.request,
     });
 
     diagnostics.pipeline.push("next_data");
@@ -1393,13 +1416,29 @@ type FetchModelFileResult =
       message: string;
     };
 
-async function fetchModelFileWithLimit(url: string, maxBytes: number): Promise<FetchModelFileResult> {
+function clampPositiveInteger(value: number | undefined, fallback: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const normalized = Math.trunc(value);
+  return normalized > 0 ? normalized : fallback;
+}
+
+async function fetchModelFileWithLimit(
+  url: string,
+  maxBytes: number,
+  options?: Pick<MakerWorldDownloadOptions, "timeoutMs" | "headers">,
+): Promise<FetchModelFileResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), MODEL_FETCH_TIMEOUT_MS);
+  const timeoutMs = clampPositiveInteger(options?.timeoutMs, MODEL_FETCH_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = {
+    "user-agent": "3d-printing-service/1.0",
+    accept: "*/*",
+    ...(options?.headers ?? {}),
+  };
   try {
     const response = await fetch(url, {
       method: "GET",
-      headers: { "user-agent": "3d-printing-service/1.0", accept: "*/*" },
+      headers,
       redirect: "follow",
       signal: controller.signal,
     });
@@ -1459,9 +1498,13 @@ async function fetchModelFileWithLimit(url: string, maxBytes: number): Promise<F
   }
 }
 
-export async function downloadMakerWorldModelFile(downloadUrl: string): Promise<MakerWorldDownloadOutcome> {
+export async function downloadMakerWorldModelFile(
+  downloadUrl: string,
+  options?: MakerWorldDownloadOptions,
+): Promise<MakerWorldDownloadOutcome> {
   try {
-    const fetched = await fetchModelFileWithLimit(downloadUrl, MAX_UPLOAD_BYTES);
+    const maxBytes = clampPositiveInteger(options?.maxBytes, MAX_UPLOAD_BYTES);
+    const fetched = await fetchModelFileWithLimit(downloadUrl, maxBytes, options);
     if (!fetched.ok) {
       return {
         ok: false,

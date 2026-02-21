@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question
+    url: https://github.com/kloshi-io/makerworld-api-reverse/discussions
+    about: Ask integration or usage questions in Discussions.
